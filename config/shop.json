@@ -1,0 +1,31 @@
+{
+  "shopName": "Guardian Style Store",
+  "whatsappNumber": "6281234567890",
+  "categories": [
+    {
+      "slug": "kosmetik",
+      "name": "Kosmetik",
+      "description": "Kategori kosmetik untuk produk makeup dan kecantikan."
+    },
+    {
+      "slug": "skincare",
+      "name": "Skincare",
+      "description": "Kategori skincare untuk perawatan wajah."
+    },
+    {
+      "slug": "personal-care",
+      "name": "Personal Care",
+      "description": "Kategori personal care untuk kebutuhan perawatan pribadi sehari-hari."
+    },
+    {
+      "slug": "health",
+      "name": "Health",
+      "description": "Kategori kesehatan dan kebutuhan harian terkait health."
+    },
+    {
+      "slug": "guardian-brand",
+      "name": "Guardian Brand",
+      "description": "Kategori produk private label atau brand Guardian."
+    }
+  ]
+}

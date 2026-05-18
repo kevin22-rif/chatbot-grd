@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guardian Chatbot RAG Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <div class="tabs">
+      <button class="tab active" onclick="switchSection('dashboard', this)">Dashboard</button>
+      <button class="tab" onclick="switchSection('products', this)">Produk Personal Care</button>
+    </div>
+
+    <section id="dashboard" class="panel active">
+      <div class="section-title">
+        <div>
+          <h2 align="center">Kategori Produk</h2>
+        </div>
+      </div>
+
+      <div id="categoryGrid" class="category-grid"></div>
+    </section>
+
+    <section id="products" class="panel">
+      <div class="section-title">
+        <div>
+          <p class="eyebrow">Dataset Kamu</p>
+          <h2>Produk Personal Care</h2>
+        </div>
+
+        <input
+          id="productSearch"
+          class="search"
+          placeholder="Cari nama produk..."
+          oninput="renderProducts()"
+        />
+      </div>
+
+      <div id="productGrid" class="product-grid"></div>
+    </section>
+
+    <section id="knowledge" class="panel">
+      <div class="section-title">
+        <div>
+          <p class="eyebrow">Respons Cepat</p>
+          <h2>Basis Pengetahuan Keyword</h2>
+        </div>
+      </div>
+
+      <div class="form-card">
+        <label for="keyword">Kata Kunci</label>
+        <input id="keyword" placeholder="contoh: halo, kategori, promo" />
+
+        <label for="response">Respons</label>
+        <textarea id="response" placeholder="Tulis respons otomatis..."></textarea>
+
+        <div class="button-row">
+          <button class="btn primary" onclick="saveKeyword()">Simpan Keyword</button>
+          <button class="btn" onclick="clearForm()">Bersihkan</button>
+        </div>
+      </div>
+
+      <div id="keywordItems" class="keyword-list"></div>
+    </section>
+
+    <section id="settings" class="panel">
+      <div class="section-title">
+        <div>
+          <p class="eyebrow">Perilaku LLM</p>
+          <h2>Batasi jawaban sesuai toko</h2>
+        </div>
+      </div>
+
+      <div class="info-box">
+        Bot diarahkan untuk menjawab berdasarkan dataset produk. Jika produk, harga,
+        stok, atau informasi lain tidak ada di CSV, bot tidak boleh mengarang jawaban.
+      </div>
+
+      <div id="datasetSummary" class="summary-grid"></div>
+    </section>
+  </main>
+
+  <div id="notification" class="notification"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
