@@ -1,11 +1,37 @@
-const API_URL = '/api';
-
-let categories = [];
 let products = [];
-let shop = {
+
+const shop = {
   shopName: 'Guardian Store',
-  whatsappNumber: ''
+  whatsappNumber: '6281234567890'
 };
+
+const categories = [
+  {
+    name: 'Kosmetik',
+    description: 'Kategori kosmetik untuk produk makeup dan kecantikan. Dataset bisa diisi anggota kelompok terkait.',
+    productCount: 0
+  },
+  {
+    name: 'Skincare',
+    description: 'Kategori skincare untuk perawatan wajah. Dataset bisa diisi anggota kelompok terkait.',
+    productCount: 0
+  },
+  {
+    name: 'Personal Care',
+    description: 'Kategori yang kamu kerjakan. Berisi data hasil scraping Shopee dari file CSV kamu.',
+    productCount: 297
+  },
+  {
+    name: 'Health',
+    description: 'Kategori kesehatan dan kebutuhan harian terkait health.',
+    productCount: 0
+  },
+  {
+    name: 'Guardian Brand',
+    description: 'Kategori produk private label atau brand Guardian.',
+    productCount: 0
+  }
+];
 
 function showNotification(message) {
   const notification = document.getElementById('notification');
@@ -45,10 +71,6 @@ function switchSection(sectionId, buttonElement) {
     renderProducts();
   }
 
-  if (sectionId === 'knowledge') {
-    loadKeywords();
-  }
-
   if (sectionId === 'settings') {
     loadDatasetSummary();
   }
@@ -66,7 +88,7 @@ function escapeHtml(value) {
 }
 
 function whatsappLink(categoryName) {
-  const number = shop.whatsappNumber || '6281234567890';
+  const number = shop.whatsappNumber;
   const text = encodeURIComponent(
     `Halo kak, saya mau tanya produk kategori ${categoryName}.`
   );
@@ -74,33 +96,10 @@ function whatsappLink(categoryName) {
   return `https://wa.me/${number}?text=${text}`;
 }
 
-async function loadCategories() {
-  try {
-    const response = await fetch(`${API_URL}/categories`);
-    const data = await response.json();
-
-    categories = data.categories || [];
-    shop = {
-      shopName: data.shopName || 'Guardian Store',
-      whatsappNumber: data.whatsappNumber || ''
-    };
-
-    renderCategories();
-  } catch (error) {
-    console.error('Error loading categories:', error);
-    showNotification('Gagal memuat kategori.');
-  }
-}
-
 function renderCategories() {
   const container = document.getElementById('categoryGrid');
 
   if (!container) return;
-
-  if (!categories.length) {
-    container.innerHTML = '<p>Belum ada kategori yang tersedia.</p>';
-    return;
-  }
 
   container.innerHTML = categories.map((category, index) => {
     return `
@@ -127,16 +126,109 @@ function renderCategories() {
   }).join('');
 }
 
+function parseCsvLine(line) {
+  const values = [];
+  let current = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (insideQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !insideQuotes) {
+      values.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current.trim());
+  return values;
+}
+
+function csvToObjects(csvText) {
+  const lines = csvText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) return [];
+
+  const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase());
+
+  return lines.slice(1).map((line) => {
+    const values = parseCsvLine(line);
+    const item = {};
+
+    headers.forEach((header, index) => {
+      item[header] = values[index] || '';
+    });
+
+    return item;
+  });
+}
+
+function normalizeProduct(row) {
+  const keys = Object.keys(row);
+
+  const findValue = (keywords) => {
+    const key = keys.find((item) => {
+      const lower = item.toLowerCase();
+      return keywords.some((keyword) => lower.includes(keyword));
+    });
+
+    return key ? row[key] : '';
+  };
+
+  return {
+    name:
+      findValue(['name', 'nama', 'title', 'produk', 'product']) ||
+      Object.values(row).find((value) => value && value.length > 3) ||
+      'Produk Personal Care',
+    image: findValue(['image', 'img', 'gambar', 'src']),
+    url: findValue(['url', 'link', 'href']) || '#',
+    discount: findValue(['diskon', 'discount', 'promo']),
+    badge: findValue(['badge', 'label', 'tag']),
+    sold: findValue(['sold', 'terjual'])
+  };
+}
+
 async function loadProducts() {
   try {
-    const response = await fetch(`${API_URL}/products?category=personal-care`);
-    const data = await response.json();
+    const response = await fetch('data/personal-care.csv');
 
-    products = data.products || [];
+    if (!response.ok) {
+      throw new Error('CSV tidak ditemukan');
+    }
+
+    const csvText = await response.text();
+    const rows = csvToObjects(csvText);
+
+    products = rows.map(normalizeProduct).filter((product) => product.name);
+
+    const personalCare = categories.find((category) => category.name === 'Personal Care');
+    if (personalCare) {
+      personalCare.productCount = products.length;
+    }
+
+    renderCategories();
     renderProducts();
+    loadDatasetSummary();
   } catch (error) {
-    console.error('Error loading products:', error);
-    showNotification('Gagal memuat produk Personal Care.');
+    console.error('Error loading CSV:', error);
+    showNotification('CSV Personal Care belum terbaca di Vercel.');
+    renderCategories();
   }
 }
 
@@ -161,11 +253,11 @@ function renderProducts() {
   container.innerHTML = filtered.slice(0, 60).map((product) => {
     return `
       <article class="product-card">
-        <img
-          src="${product.image || ''}"
-          alt="${escapeHtml(product.name)}"
-          onerror="this.style.display='none'"
-        />
+        ${
+          product.image
+            ? `<img src="${product.image}" alt="${escapeHtml(product.name)}" onerror="this.style.display='none'" />`
+            : ''
+        }
 
         <div class="product-body">
           <h3>${escapeHtml(product.name)}</h3>
@@ -185,172 +277,37 @@ function renderProducts() {
   }).join('');
 }
 
-async function reloadDatasets() {
-  try {
-    const response = await fetch(`${API_URL}/reload-datasets`, {
-      method: 'POST'
-    });
-
-    const data = await response.json();
-
-    showNotification(data.message || 'Dataset berhasil dimuat ulang.');
-
-    await loadCategories();
-    await loadProducts();
-    await loadDatasetSummary();
-  } catch (error) {
-    console.error('Error reloading datasets:', error);
-    showNotification('Gagal reload dataset.');
-  }
+function reloadDatasets() {
+  showNotification('Dataset dimuat ulang dari file CSV.');
+  loadProducts();
 }
 
-async function loadDatasetSummary() {
+function loadDatasetSummary() {
   const container = document.getElementById('datasetSummary');
 
   if (!container) return;
 
-  try {
-    const response = await fetch(`${API_URL}/datasets`);
-    const data = await response.json();
+  container.innerHTML = `
+    <div class="summary-card">
+      <span>Total Kategori</span>
+      <strong>${categories.length}</strong>
+    </div>
 
-    container.innerHTML = `
-      <div class="summary-card">
-        <span>Total Dokumen RAG</span>
-        <strong>${data.totalDocuments || 0}</strong>
-      </div>
+    <div class="summary-card">
+      <span>Produk Personal Care</span>
+      <strong>${products.length}</strong>
+    </div>
 
-      <div class="summary-card">
-        <span>Dataset CSV</span>
-        <strong>${data.datasets ? data.datasets.length : 0}</strong>
-      </div>
-
-      <div class="summary-card">
-        <span>Produk Personal Care</span>
-        <strong>${products.length}</strong>
-      </div>
-    `;
-  } catch (error) {
-    console.error('Error loading dataset summary:', error);
-    container.innerHTML = '<p>Gagal memuat ringkasan dataset.</p>';
-  }
+    <div class="summary-card">
+      <span>Status Vercel</span>
+      <strong>Online</strong>
+    </div>
+  `;
 }
 
-async function loadKeywords() {
-  const container = document.getElementById('keywordItems');
-
-  if (!container) return;
-
-  try {
-    const response = await fetch(`${API_URL}/knowledge/keywords`);
-    const data = await response.json();
-
-    const entries = Object.entries(data.responses || {});
-
-    if (!entries.length) {
-      container.innerHTML = '<p>Belum ada keyword.</p>';
-      return;
-    }
-
-    container.innerHTML = entries.map(([keyword, responseText]) => {
-      return `
-        <div class="keyword-item">
-          <div>
-            <strong>${escapeHtml(keyword)}</strong>
-            <p>${escapeHtml(responseText)}</p>
-          </div>
-
-          <button
-            class="btn danger small"
-            onclick="deleteKeyword('${encodeURIComponent(keyword)}')"
-          >
-            Hapus
-          </button>
-        </div>
-      `;
-    }).join('');
-  } catch (error) {
-    console.error('Error loading keywords:', error);
-    container.innerHTML = '<p>Gagal memuat keyword.</p>';
-  }
-}
-
-async function saveKeyword() {
-  const keywordInput = document.getElementById('keyword');
-  const responseInput = document.getElementById('response');
-
-  if (!keywordInput || !responseInput) return;
-
-  const keyword = keywordInput.value.trim().toLowerCase();
-  const responseText = responseInput.value.trim();
-
-  if (!keyword || !responseText) {
-    showNotification('Keyword dan respons harus diisi.');
-    return;
-  }
-
-  try {
-    const response = await fetch(`${API_URL}/knowledge/keyword`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        keyword,
-        response: responseText
-      })
-    });
-
-    const data = await response.json();
-
-    showNotification(data.message || 'Keyword berhasil disimpan.');
-
-    if (data.success) {
-      clearForm();
-      loadKeywords();
-    }
-  } catch (error) {
-    console.error('Error saving keyword:', error);
-    showNotification('Gagal menyimpan keyword.');
-  }
-}
-
-async function deleteKeyword(encodedKeyword) {
-  const keyword = decodeURIComponent(encodedKeyword);
-
-  if (!confirm(`Hapus keyword "${keyword}"?`)) return;
-
-  try {
-    const response = await fetch(`${API_URL}/knowledge/keyword/${encodedKeyword}`, {
-      method: 'DELETE'
-    });
-
-    const data = await response.json();
-
-    showNotification(data.message || 'Keyword berhasil dihapus.');
-
-    if (data.success) {
-      loadKeywords();
-    }
-  } catch (error) {
-    console.error('Error deleting keyword:', error);
-    showNotification('Gagal menghapus keyword.');
-  }
-}
-
-function clearForm() {
-  const keywordInput = document.getElementById('keyword');
-  const responseInput = document.getElementById('response');
-
-  if (keywordInput) keywordInput.value = '';
-  if (responseInput) responseInput.value = '';
-
-  if (keywordInput) keywordInput.focus();
-}
-
-async function init() {
-  await loadCategories();
-  await loadProducts();
-  await loadDatasetSummary();
+function init() {
+  renderCategories();
+  loadProducts();
 }
 
 init();
